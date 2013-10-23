@@ -1,0 +1,122 @@
+#!/usr/bin/env ruby
+
+require 'yaml'
+require 'fileutils'
+require 'logger'
+
+# GLobal Vars
+@log = Logger.new $stderr
+
+# Parse Options
+@name = 'testme'
+@config = nil
+@api_key = nil
+@theme_dir = nil
+
+# Default configuration
+default_config = {
+  'api_key' => nil,
+  'whitelist' => [],
+  'blacklist' => [],
+  'theme_directory' => "#{ENV['PWD']}",
+  'force_overwrite' => false
+}
+
+##
+# Run startup routine.
+#
+# Prepares config and global variables
+def init
+  # Read configuration
+  config_locations = [
+    ".shots.conf",
+    "#{ENV['HOME']}/.shots/config"
+  ]
+
+  # Check to see if configuration files exists
+  # If not, use default config
+  available_locations = config_locations.select { | loc |
+    File.exists?(loc)
+  }
+
+  if available_locations.empty?
+    @config = default_config
+  else
+    @config = YAML.load_file(available_locations.first)
+  end
+
+  ## Get API_KEY
+  @api_key ||= ENV['SHOTSHARE_API_KEY'] || @config['api_key']
+
+  # Check to see if basic directories exists. If not create it.
+  theme_dir_exists = Dir.exists?(@config['theme_directory'])
+  unless theme_dir_exists
+    FileUtils.mkdir_p @config['theme_directory']
+  end
+
+  @theme_dir = @config['theme_directory'] + File::Separator + @name
+end
+
+def gather_info
+  # Gather desktop data
+  ## Get running procs for user
+  procs =  `ps -au $(whoami) | awk '{print $4}' | sort | uniq -u`
+  ## Read proc whitelist/blacklist
+  ## TODO: Apply WHITELIST / BLACKLIST
+
+  # Save to file
+  File.open("#{@theme_dir}/procs", "w") do | f |
+    f << procs
+  end
+
+  # Gather .Xresources colors
+  `xrdb -edit #{@theme_dir}/Xresources`
+  if $? == 0
+  end
+end
+
+def check_if_theme_exists
+  theme_exists = Dir.exists?("#{@config['theme_directory']}/#{@name}")
+
+  if theme_exists and !@config['force_overwrite']
+    # Bail out, don't overwrite
+    @log.error "#{@name} theme already exists. Not overwriting."
+  end
+
+  @theme_dir = "#{@config['theme_directory']}/#{@name}"
+  unless theme_exists
+    FileUtils.mkdir_p theme_dir
+  end
+end
+
+def take_screenshot
+  # Assemble screenshot command
+  command = 'scrot'
+
+  ## Append output file
+  command << " #{@theme_dir}/#{@name}.jpg"
+
+  # Take the screenshot
+  `#{command}`
+end
+
+def send_screenshot
+  return false unless @api_key
+  true
+end
+
+###  INITIALIZE  PROGRAM  ###
+init
+
+###                       ###
+### Start Doing Fun Stuff ###
+###                       ###
+check_if_theme_exists
+gather_info
+
+# Display script
+puts `#{@config['script']}` if @config['script']
+
+take_screenshot
+send_screenshot
+##
