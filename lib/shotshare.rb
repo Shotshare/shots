@@ -1,49 +1,56 @@
-require_relative 'shotshare/publisher.rb'
+require 'rest_client'
+require 'json'
 
 module Shotshare
+  #URL = 'http://10.10.45.188:3000'
+  URL = 'http://fast-beyond-6220.herokuapp.com'
 
-  DEFAULT_CONFIG = {
-    'api_key' => nil,
-    'whitelist' => [],
-    'blacklist' => [],
-    'theme_directory' => "#{ENV['PWD']}",
-    'force_overwrite' => false
-  }
+  class Publisher
 
-  class Investigator
-    class << self
-
-      def gather_processes file
-        # Gather desktop data
-        ## Get running procs for user
-        procs =  `ps -au $(whoami) | awk '{print $4}' | sort | uniq -u`
-        ## Read proc whitelist/blacklist
-        ## TODO: Apply WHITELIST / BLACKLIST
-
-        # Save to file
-        File.open("#{theme_dir}/procs", "w") do | f |
-          f << procs
-        end
-
-      end
-
-      def gather_xresources file
-        `xrdb -edit #{file}`
-        # Gather .Xresources colors
-        if $?
-        end
-      end
-
-      private
-      def prep_file file
-        dir = File.dirname(file)
-        dir_exists = Dir.exists?(dir)
-        file_exists = File.exists?(file)
-
-        dir_exists and file_exists
-      end
-
+    def initialize(apikey)
+      @apikey = apikey
     end
+
+    def register email, username
+      RestClient.post URL + "/api/register", \
+        email: email, username: username
+    end
+
+    def prepare_submission
+      result = RestClient.post URL + "/api/submissions", \
+        {}, {Authorization: "Token token=#{@apikey}"}
+      @submission_key = JSON.parse(result)['key']
+      @submission_key
+    end
+
+    def upload_screenshot file
+      return nil unless @submission_key
+      upload_to_submission file, 'screenshot'
+    end
+
+    def upload_program program
+      return nil unless @submission_key
+
+      upload_to_submission nil, 'program', {'program' => program }
+    end
+
+    def upload_configuration file
+      return nil unless @submission_key
+
+      upload_to_submission file, 'config'
+    end
+
+    private
+    def upload_to_submission file=nil, type=nil, params=nil
+      return nil unless @submission_key
+
+      params ||= {}
+      params[:file] = file if file
+
+      result = RestClient.put URL + "/api/submissions/#{@submission_key}?type=#{type}", params, {Authorization: "Token token=#{@apikey}"}
+      JSON.parse(result)['key']
+    end
+
   end
 
 end

@@ -1,0 +1,58 @@
+#!/usr/bin/env ruby
+#arguments:
+#  --no-programs
+#  --no-configs
+#
+#  --P program whitelist
+#  --p program blacklist
+#
+#  --c config whitelist
+#  --C config blacklist
+#
+#  --k api_key
+#  --d description of screenshot
+#
+## Get configuration
+## Get key
+#
+## If no key then
+### ask to submit anonymously
+## or
+### Ask for email and username to send key to and exit
+#
+## take screenshot
+## gather programs unless specified not to
+## gather configs unless specified not to
+#
+## Filter programs
+## filter configs
+#
+## Submit with valid key
+
+require "shotshare"
+require "optparse"
+
+options = {}
+
+parser = OptionParser.new do | opts |
+
+  # Change banner
+  # opts.banner = "Usage: #{$0} [options] /path/to/backupdir\nUsername and password are required."
+
+  opts.on("-c", "--config", "Specify configuration file.") do
+    options[:config] = true
+  end
+
+  opts.on("-k", "--key", "Api Key to use.") do
+    options[:api_key] = true
+  end
+
+end
+parser.parse!
+
+if ARGV.empty? || !options[:password] || !options[:username]
+  puts parser.banner
+  exit
+end
+
+Shotshare::Shots.init(options, ARGV)

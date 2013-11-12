@@ -4,22 +4,24 @@ require 'yaml'
 require 'fileutils'
 require 'logger'
 
+require_relative '../lib/shotshare'
+
 # GLobal Vars
 @log = Logger.new $stderr
 
 # Parse Options
-@name = 'testme'
 @config = nil
-@api_key = nil
-@theme_dir = nil
+@api_key = 'c6f944030925f9fba8714f01d1844d2e'
+
+SHOTSHARE_URL = 'http://shotshare.it'
+SHOTSHARE_API = {
+  :register => '/api/v1/register',
+  :new_submission => '/api/v1/submission',
+}
 
 # Default configuration
-default_config = {
-  'api_key' => nil,
-  'whitelist' => [],
-  'blacklist' => [],
-  'theme_directory' => "#{ENV['PWD']}",
-  'force_overwrite' => false
+DEFAULT_CONFIG = {
+  'api_key' => '',
 }
 
 ##
@@ -27,6 +29,9 @@ default_config = {
 #
 # Prepares config and global variables
 def init
+
+  @pub = Shotshare::Publisher.new @api_key
+
   # Read configuration
   config_locations = [
     ".shots.conf",
@@ -40,24 +45,16 @@ def init
   }
 
   if available_locations.empty?
-    @config = default_config
+    @config = DEFAULT_CONFIG
   else
     @config = YAML.load_file(available_locations.first)
   end
 
   ## Get API_KEY
   @api_key ||= ENV['SHOTSHARE_API_KEY'] || @config['api_key']
-
-  # Check to see if basic directories exists. If not create it.
-  theme_dir_exists = Dir.exists?(@config['theme_directory'])
-  unless theme_dir_exists
-    FileUtils.mkdir_p @config['theme_directory']
-  end
-
-  @theme_dir = @config['theme_directory'] + File::Separator + @name
 end
 
-def gather_info
+def gather_programs
   # Gather desktop data
   ## Get running procs for user
   procs =  `ps -au $(whoami) | awk '{print $4}' | sort | uniq -u`
@@ -65,27 +62,19 @@ def gather_info
   ## TODO: Apply WHITELIST / BLACKLIST
 
   # Save to file
-  File.open("#{@theme_dir}/procs", "w") do | f |
-    f << procs
-  end
-
-  # Gather .Xresources colors
-  `xrdb -edit #{@theme_dir}/Xresources`
-  if $? == 0
+  procs.split("\n").each do | p |
+    program = p.chomp()
+    if program
+      @pub.upload_program program
+    end
   end
 end
 
-def check_if_theme_exists
-  theme_exists = Dir.exists?("#{@config['theme_directory']}/#{@name}")
-
-  if theme_exists and !@config['force_overwrite']
-    # Bail out, don't overwrite
-    @log.error "#{@name} theme already exists. Not overwriting."
-  end
-
-  @theme_dir = "#{@config['theme_directory']}/#{@name}"
-  unless theme_exists
-    FileUtils.mkdir_p theme_dir
+def gather_colors
+  # Gather .Xresources colors
+  `xrdb -edit /tmp/shotshare_xresources`
+  if $? == 0
+    @pub.upload_configuration File.new('/tmp/shotshare_xresources','rb')
   end
 end
 
@@ -94,13 +83,15 @@ def take_screenshot
   command = 'scrot'
 
   ## Append output file
-  command << " #{@theme_dir}/#{@name}.jpg"
+  command << " /tmp/shotshare_screenshot.png"
 
   # Take the screenshot
   `#{command}`
+
+  @pub.upload_screenshot File.new('/tmp/shotshare_screenshot.png', 'rb')
 end
 
-def send_screenshot
+def send_data
   return false unless @api_key
   true
 end
@@ -108,15 +99,15 @@ end
 ###  INITIALIZE  PROGRAM  ###
 init
 
+@pub.prepare_submission
+
 ###                       ###
 ### Start Doing Fun Stuff ###
 ###                       ###
-check_if_theme_exists
-gather_info
+gather_programs
+gather_colors
 
-# Display script
+# run display script
 puts `#{@config['script']}` if @config['script']
 
 take_screenshot
-send_screenshot
-##

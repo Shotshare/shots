@@ -1,0 +1,2 @@
+bin/shots:65:  ## TODO: Apply WHITELIST / BLACKLIST
+lib/shotshare.rb:21:        ## TODO: Apply WHITELIST / BLACKLIST
