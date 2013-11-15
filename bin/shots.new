@@ -29,7 +29,8 @@
 #
 ## Submit with valid key
 
-require "shotshare"
+#require "shotshare"
+require './lib/shotshare.rb'
 require "optparse"
 
 options = {}
@@ -38,6 +39,13 @@ parser = OptionParser.new do | opts |
 
   # Change banner
   # opts.banner = "Usage: #{$0} [options] /path/to/backupdir\nUsername and password are required."
+  opts.on("-ld", "--debug", "Log in debug mode") do
+    options[:debug] = true
+  end
+
+  opts.on("-li", "--info", "Log in info mode") do
+    options[:info] = true
+  end
 
   opts.on("-c", "--config", "Specify configuration file.") do
     options[:config] = true
@@ -47,12 +55,34 @@ parser = OptionParser.new do | opts |
     options[:api_key] = true
   end
 
+  opts.on("-r", "--register [EMAIL:USERNAME]", "Register with shotshare and obtain an API_KEY. Just requires valid email address.") do |str|
+    options[:register] = true
+    options[:email] = str.split(':').first
+    options[:username] = str.split(':').last
+  end
+
 end
 parser.parse!
 
-if ARGV.empty? || !options[:password] || !options[:username]
-  puts parser.banner
-  exit
-end
+#if ARGV.empty? || !options[:password] || !options[:username]
+#  puts parser.banner
+#  exit
+#end
+begin
+  Shotshare::Shots.instance.run(options, ARGV)
+rescue Interrupt
+  puts "Exiting...\n"
+rescue StandardError => e
+  if e.message.downcase =~ /no api key/
+    puts e.message
+    puts "You might need to register with the website. It's pretty painless."
+    puts "Try: #{$0} --register"
 
-Shotshare::Shots.init(options, ARGV)
+  elsif e.message.downcase =~ /Is a directory/
+    puts e.message
+    puts "You might be trying up create a file out of a directory."
+    puts "If you have set a custom command, be sure that it's only selecting files."
+  else
+    raise e
+  end
+end

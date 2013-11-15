@@ -1,56 +1,44 @@
-require 'rest_client'
-require 'json'
+require 'docile'
+require 'yaml'
+require 'erb'
 
 module Shotshare
-  #URL = 'http://10.10.45.188:3000'
-  URL = 'http://fast-beyond-6220.herokuapp.com'
-
-  class Publisher
-
-    def initialize(apikey)
-      @apikey = apikey
-    end
-
-    def register email, username
-      RestClient.post URL + "/api/register", \
-        email: email, username: username
-    end
-
-    def prepare_submission
-      result = RestClient.post URL + "/api/submissions", \
-        {}, {Authorization: "Token token=#{@apikey}"}
-      @submission_key = JSON.parse(result)['key']
-      @submission_key
-    end
-
-    def upload_screenshot file
-      return nil unless @submission_key
-      upload_to_submission file, 'screenshot'
-    end
-
-    def upload_program program
-      return nil unless @submission_key
-
-      upload_to_submission nil, 'program', {'program' => program }
-    end
-
-    def upload_configuration file
-      return nil unless @submission_key
-
-      upload_to_submission file, 'config'
-    end
-
-    private
-    def upload_to_submission file=nil, type=nil, params=nil
-      return nil unless @submission_key
-
-      params ||= {}
-      params[:file] = file if file
-
-      result = RestClient.put URL + "/api/submissions/#{@submission_key}?type=#{type}", params, {Authorization: "Token token=#{@apikey}"}
-      JSON.parse(result)['key']
-    end
-
-  end
-
+  # Constants
+  URL = 'http://10.10.45.188:3000'
+  #URL = 'http://fast-beyond-6220.herokuapp.com'
 end
+
+require_relative './shotshare/config'
+require_relative './shotshare/rules'
+require_relative './shotshare/dsl'
+require_relative './shotshare/publisher'
+require_relative './shotshare/shots'
+
+
+# Global methods for dsl
+def process_rules *args, &block
+  Shotshare::ProcessRuleContainer.instance.rules = \
+    Docile.dsl_eval(Shotshare::Dsl::ProcessRuleBuilder.new, &block).build
+end
+
+def config_rules *args, &block
+  Shotshare::ConfigRuleContainer.instance.rules = \
+    Docile.dsl_eval(Shotshare::Dsl::ConfigRuleBuilder.new, &block).build
+end
+
+def shots_config(*args)
+  if args.first.is_a? File
+    config = YAML.load(ERB.new(args.first).result)
+
+  elsif args.first.is_a?(String) and File.exists?(args.first)
+    config = YAML.load(ERB.new(args.first).result)
+
+  elsif args.first.is_a? String
+    config = YAML.load(args.first)
+
+  elsif args.first.is_a? Hash
+    config = args.first
+  end
+  Shotshare::Config.instance.current.merge!(config)
+end
+
