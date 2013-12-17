@@ -1,5 +1,5 @@
 #Shots
-> CLI Client for [Shotshare.it](http://shotshare.it)
+> CLI Client easily contributing to [Shotshare.it](http://shotshare.it)
 
 ###About
 Shots is a command line application that automates the process of capturing and
@@ -8,5 +8,8 @@ semi-intelligent decisions when searching for relevant configuration files. All
 of it's behavior can be modified by using a simple
 [DSL](http://en.wikipedia.org/wiki/Domain-specific_language).
 
+###Installation
+
 ###Usage
 
+###Hacking
